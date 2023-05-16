@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
 pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 error NftMarketplace__PriceInvalid();
 error NftMarketplace__NotApproved();
@@ -15,7 +16,7 @@ error NftMarketplace__PaymentIsNotEnough(
 error NftMarketplace__WithdrawExcess();
 error NftMarketplace__WithdrawFailed();
 
-contract NftMarketplace {
+contract NftMarketplace is ReentrancyGuard {
     struct Listing {
         address seller;
         uint256 price;
@@ -118,7 +119,10 @@ contract NftMarketplace {
         emit ItemListed(msg.sender, nftAddress, tokenId, newPrice);
     }
 
-    function buyItem(address nftAddress, uint256 tokenId) external payable {
+    function buyItem(
+        address nftAddress,
+        uint256 tokenId
+    ) external payable nonReentrant isListed(nftAddress, tokenId) {
         IERC721 nft = IERC721(nftAddress);
         Listing memory listing = s_listings[nftAddress][tokenId];
         if (msg.value < listing.price) {

@@ -2,9 +2,8 @@ import { deployments, ethers, getNamedAccounts, network } from 'hardhat'
 import { developmentChains } from '../../helper-hardhat-config'
 import { BasicNft, NftMarketplace } from '../../typechain-types'
 import { Address } from 'hardhat-deploy/dist/types'
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
-import { assert } from 'console'
 
 !developmentChains.includes(network.name)
   ? describe.skip
@@ -76,7 +75,7 @@ import { assert } from 'console'
           //   console.log(userAccount.address) // 新的签名者
           //   console.log(defaultAccount) // 旧的签名者，也是nft的拥有者（因为basicNft调用mint时的签名者就是defaultAccount
           //   console.log(await basicNft.ownerOf(0))
-          assert(defaultAccount === (await basicNft.ownerOf(0)))
+          assert.equal(await basicNft.ownerOf(0), defaultAccount, 'Not the owner')
           /**
            * 当nftMarketplace调用listItem时，首先执行修饰器的代码发现msg.sender(userAccount.address)并不等于owner
            * 在这里就已经revert了，函数内的代码(_;)并不会执行，也就是说不会进入到判断授权的步骤

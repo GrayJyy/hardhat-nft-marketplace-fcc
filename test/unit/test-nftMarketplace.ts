@@ -91,8 +91,8 @@ import { assert } from 'console'
         it('Should updates listing with seller and price', async function () {
           await nftMarketplace.listItem(basicNft.address, TOKEN_ID, PRICE)
           const listing = await nftMarketplace.getListing(basicNft.address, TOKEN_ID)
-          assert(listing.price.toString() == PRICE.toString())
-          assert(listing.seller.toString() == defaultAccount)
+          assert(listing.price.toString() === PRICE.toString())
+          assert(listing.seller.toString() === defaultAccount)
         })
       })
     })

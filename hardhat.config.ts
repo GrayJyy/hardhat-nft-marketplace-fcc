@@ -32,7 +32,7 @@ const config: HardhatUserConfig = {
     localhost: { chainId: 31337 },
     sepolia: { chainId: 11155111, url: SEPOLIA_RPC_URL, accounts: [PRIVATE_KEY], gas: 2100000, gasPrice: 8000000000 },
   },
-  namedAccounts: { deployer: { default: 0, 1: 0 } },
+  namedAccounts: { deployer: { default: 0, 1: 0 }, user: { default: 1 } },
   etherscan: { apiKey: ETHERSCAN_API_KEY },
   gasReporter: { enabled: false, coinmarketcap: COINMARKET_API_KEY },
   mocha: { timeout: 500000 },

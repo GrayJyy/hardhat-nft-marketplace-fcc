@@ -139,12 +139,15 @@ contract NftMarketplace is ReentrancyGuard {
     }
 
     function withdraw(uint256 amount) external payable {
+        require(amount > 0, "amount less than 0");
         uint256 total = s_proceeds[msg.sender];
+        require(total > 0, "total less than 0");
         if (amount > total) {
             revert NftMarketplace__WithdrawExcess();
         }
         s_proceeds[msg.sender] -= amount;
-        (bool success, ) = payable(address(this)).call{value: amount}("");
+        // 注意这里是msg.sender而不是this。意为将 amount 个以太币从 NFT Marketplace 合约发送到 msg.sender 所代表的地址。
+        (bool success, ) = payable(address(msg.sender)).call{value: amount}("");
         if (!success) {
             revert NftMarketplace__WithdrawFailed();
         }

@@ -10,6 +10,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
   : describe('NftMarketplace', () => {
       const TOKEN_ID = 0
       const PRICE = ethers.utils.parseEther('0.1')
+      const NEW_PRICE = ethers.utils.parseEther('0.2')
       let basicNft: BasicNft
       let nftMarketplace: NftMarketplace
       let nftAddress: Address
@@ -92,6 +93,114 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
           const listing = await nftMarketplace.getListing(basicNft.address, TOKEN_ID)
           assert(listing.price.toString() === PRICE.toString())
           assert(listing.seller.toString() === defaultAccount)
+        })
+      })
+
+      describe('cancelList', () => {
+        it('Should reverts when not the owner', async () => {
+          nftMarketplace = nftMarketplace.connect(userAccount)
+          assert.equal(await basicNft.ownerOf(0), defaultAccount, 'Not the owner')
+          await expect(nftMarketplace.cancelList(nftAddress, TOKEN_ID)).to.be.revertedWithCustomError(
+            nftMarketplace,
+            'NftMarketplace__IsNotOwner'
+          )
+        })
+        it('Should reverts when item is not listed', async () => {
+          await expect(nftMarketplace.cancelList(nftAddress, TOKEN_ID)).to.be.revertedWithCustomError(
+            nftMarketplace,
+            'NftMarketplace__IsNotListed'
+          )
+        })
+        it('Should emits the event called ItemCanceled and delete the item', async () => {
+          await nftMarketplace.listItem(nftAddress, TOKEN_ID, PRICE)
+          await expect(nftMarketplace.cancelList(nftAddress, TOKEN_ID)).to.emit(nftMarketplace, 'ItemCanceled')
+          const listing = await nftMarketplace.getListing(nftAddress, TOKEN_ID)
+          assert.equal(listing.price.toString(), '0')
+        })
+      })
+
+      describe('updateListing', () => {
+        it('Should reverts when not the owner', async () => {
+          nftMarketplace = nftMarketplace.connect(userAccount)
+          assert.equal(await basicNft.ownerOf(0), defaultAccount, 'Not the owner')
+          await expect(nftMarketplace.updateListing(nftAddress, TOKEN_ID, NEW_PRICE)).to.be.revertedWithCustomError(
+            nftMarketplace,
+            'NftMarketplace__IsNotOwner'
+          )
+        })
+        it('Should reverts when item is not listed', async () => {
+          await expect(nftMarketplace.updateListing(nftAddress, TOKEN_ID, NEW_PRICE)).to.be.revertedWithCustomError(
+            nftMarketplace,
+            'NftMarketplace__IsNotListed'
+          )
+        })
+        it('Should emits the event called ItemListed and update the price', async () => {
+          await nftMarketplace.listItem(nftAddress, TOKEN_ID, PRICE)
+          await expect(nftMarketplace.updateListing(nftAddress, TOKEN_ID, NEW_PRICE)).to.emit(
+            nftMarketplace,
+            'ItemListed'
+          )
+          const listing = await nftMarketplace.getListing(nftAddress, TOKEN_ID)
+          assert.equal(listing.price.toString(), NEW_PRICE.toString())
+        })
+      })
+
+      describe('buyItem', () => {
+        it('Should reverts when item is not listed', async () => {
+          await expect(
+            nftMarketplace.buyItem(nftAddress, TOKEN_ID, { value: NEW_PRICE })
+          ).to.be.revertedWithCustomError(nftMarketplace, 'NftMarketplace__IsNotListed')
+        })
+        it('Should reverts when payment is not enough', async () => {
+          await nftMarketplace.listItem(nftAddress, TOKEN_ID, NEW_PRICE)
+          await expect(nftMarketplace.buyItem(nftAddress, TOKEN_ID, { value: PRICE })).to.be.revertedWithCustomError(
+            nftMarketplace,
+            'NftMarketplace__PaymentIsNotEnough'
+          )
+        })
+        it('Should updates the listings and proceeds and emits the ItemBought', async () => {
+          await nftMarketplace.listItem(nftAddress, TOKEN_ID, PRICE)
+          await expect(nftMarketplace.buyItem(nftAddress, TOKEN_ID, { value: PRICE })).to.emit(
+            nftMarketplace,
+            'ItemBought'
+          )
+          const price = (await nftMarketplace.getListing(nftAddress, TOKEN_ID)).price.toString()
+          assert.equal(price.toString(), '0')
+          const proceeds = await nftMarketplace.getProceeds(defaultAccount)
+          assert.equal(proceeds.toString(), PRICE.toString())
+        })
+      })
+      describe('withdraw', () => {
+        it('Should reverts when amount less than 0', async () => {
+          await expect(nftMarketplace.withdraw(ethers.utils.parseEther('0'))).to.be.revertedWith('amount less than 0')
+        })
+        it('Should reverts when total less than 0', async () => {
+          await expect(nftMarketplace.withdraw(PRICE)).to.be.revertedWith('total less than 0')
+        })
+        it('Should reverts when total less than amount', async () => {
+          await nftMarketplace.listItem(nftAddress, TOKEN_ID, PRICE)
+          nftMarketplace = nftMarketplace.connect(userAccount)
+          await nftMarketplace.buyItem(nftAddress, TOKEN_ID, { value: PRICE })
+          nftMarketplace = nftMarketplace.connect(await ethers.getSigner(defaultAccount))
+          // 在调用withdraw之前需要先把合约连接到卖家地址
+          await expect(nftMarketplace.withdraw(NEW_PRICE)).to.be.revertedWithCustomError(
+            nftMarketplace,
+            'NftMarketplace__WithdrawExcess'
+          )
+        })
+        it('Should withdraws proceeds', async () => {
+          await nftMarketplace.listItem(nftAddress, TOKEN_ID, NEW_PRICE)
+          nftMarketplace = nftMarketplace.connect(userAccount)
+          await nftMarketplace.buyItem(nftAddress, TOKEN_ID, { value: NEW_PRICE })
+          const sellerProceeds = await nftMarketplace.getProceeds(defaultAccount) // 通过出售nft获得的金额
+          const sellerBalanceBefore = await (await ethers.getSigner(defaultAccount)).getBalance() // 原来的余额
+          nftMarketplace = nftMarketplace.connect(await ethers.getSigner(defaultAccount))
+          const tx = await nftMarketplace.withdraw(sellerProceeds) // 将出售所得的金额sellerProceeds全部提取
+          const txReceipt = await tx.wait(1)
+          const { gasUsed, effectiveGasPrice } = txReceipt
+          const gasCost = gasUsed.mul(effectiveGasPrice) // 提现消耗的gas
+          const sellerBalanceAfter = await (await ethers.getSigner(defaultAccount)).getBalance() // 提现后的余额
+          assert.equal(sellerProceeds.add(sellerBalanceBefore).toString(), gasCost.add(sellerBalanceAfter).toString()) // 原来的余额+卖出nft的收入 = 提现的gas消耗+提现后的余额
         })
       })
     })

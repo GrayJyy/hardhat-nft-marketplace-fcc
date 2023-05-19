@@ -16,11 +16,12 @@ const deployNftMarketplace: DeployFunction = async hre => {
     log: true,
     waitConfirmations,
   })
+
   log('deploy nftMarketplace end!')
   log('-----------------------------------------------------------------------------')
 
   if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
-    verify(nftMarketplace.address, args)
+    await verify(nftMarketplace.address, args)
   }
 }
 
